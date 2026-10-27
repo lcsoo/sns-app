@@ -1,5 +1,6 @@
 package com.apiece.springboot_sns_sample.config.auth;
 
+import java.util.List;
 import org.jspecify.annotations.NonNull;
 import org.springframework.beans.factory.BeanClassLoaderAware;
 import org.springframework.context.annotation.Bean;
@@ -24,8 +25,6 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import tools.jackson.databind.json.JsonMapper;
 import tools.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 
-import java.util.List;
-
 @Configuration
 @EnableRedisIndexedHttpSession(maxInactiveIntervalInSeconds = 1800)
 public class SecurityConfig implements BeanClassLoaderAware {
@@ -38,36 +37,39 @@ public class SecurityConfig implements BeanClassLoaderAware {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, SessionRegistry sessionRegistry, AuthSuccessHandler authSuccessHandler) {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, SessionRegistry sessionRegistry,
+        AuthSuccessHandler authSuccessHandler) {
         http
-                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                .csrf(AbstractHttpConfigurer::disable)
-                .httpBasic(AbstractHttpConfigurer::disable)
-                .formLogin(form -> form
-                        .loginProcessingUrl("/api/v1/login") // POST, Content-Type: application/x-www-form-urlencoded
-                        .successHandler(authSuccessHandler)
-                        .failureHandler((request, response, ex) -> response.setStatus(HttpStatus.UNAUTHORIZED.value()))
-                )
-                .logout(logout -> logout
-                        .logoutUrl("/api/v1/logout") // POST
-                        .logoutSuccessHandler(((request, response, authentication) -> response.setStatus(HttpStatus.OK.value())))
-                        .invalidateHttpSession(true)
-                )
-                .sessionManagement(session -> session
-                        .maximumSessions(2)
-                        .maxSessionsPreventsLogin(false)
-                        .sessionRegistry(sessionRegistry)
-                )
-                .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(
-                                "/api/v1/users/signup",
-                                "/api/v1/login",
-                                "/api/v1/sessions"
-                        ).permitAll()
-                        .anyRequest().authenticated()
-                ).exceptionHandling(exception -> exception
-                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
-                );
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .csrf(AbstractHttpConfigurer::disable)
+            .httpBasic(AbstractHttpConfigurer::disable)
+            .formLogin(form -> form
+                .loginProcessingUrl("/api/v1/login") // POST, Content-Type: application/x-www-form-urlencoded
+                .successHandler(authSuccessHandler)
+                .failureHandler((request, response, ex) -> response.setStatus(HttpStatus.UNAUTHORIZED.value()))
+            )
+            .logout(logout -> logout
+                .logoutUrl("/api/v1/logout") // POST
+                .logoutSuccessHandler(
+                    ((request, response, authentication) -> response.setStatus(HttpStatus.OK.value())))
+                .invalidateHttpSession(true)
+            )
+            .sessionManagement(session -> session
+                .maximumSessions(2)
+                .maxSessionsPreventsLogin(false)
+                .sessionRegistry(sessionRegistry)
+            )
+            .authorizeHttpRequests(authorize -> authorize
+                .requestMatchers(
+                    "/api/v1/users/signup",
+                    "/api/v1/login",
+                    "/api/v1/sessions",
+                    "/actuator/health"
+                ).permitAll()
+                .anyRequest().authenticated()
+            ).exceptionHandling(exception -> exception
+                .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+            );
         return http.build();
     }
 
@@ -84,15 +86,15 @@ public class SecurityConfig implements BeanClassLoaderAware {
     @Bean
     public RedisSerializer<Object> springSessionDefaultRedisSerializer() {
         var typeValidatorBuilder = BasicPolymorphicTypeValidator.builder()
-                .allowIfSubType("java.lang.")
-                .allowIfSubType("java.util.")
-                .allowIfSubType("java.time.")
-                .allowIfSubType("org.springframework.session.")
-                .allowIfSubType("com.apiece.");
+            .allowIfSubType("java.lang.")
+            .allowIfSubType("java.util.")
+            .allowIfSubType("java.time.")
+            .allowIfSubType("org.springframework.session.")
+            .allowIfSubType("com.apiece.");
 
         JsonMapper jsonMapper = JsonMapper.builder()
-                .addModules(SecurityJacksonModules.getModules(classLoader, typeValidatorBuilder))
-                .build();
+            .addModules(SecurityJacksonModules.getModules(classLoader, typeValidatorBuilder))
+            .build();
 
         return new JacksonJsonRedisSerializer<>(jsonMapper, Object.class);
     }
