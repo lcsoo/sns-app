@@ -54,6 +54,7 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind")
     implementation("org.bouncycastle:bcprov-jdk18on:1.86")
     implementation("software.amazon.awssdk:s3:2.53.0")
+    implementation("io.micrometer:micrometer-registry-prometheus")
 
     runtimeOnly("com.h2database:h2")
     runtimeOnly("org.postgresql:postgresql")
