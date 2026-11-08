@@ -36,7 +36,6 @@ rustfs:
   bucket: media
   region: ap-northeast-2
   presigned-url-expiration-seconds: 3600
-
 logging:
   structured:
     format:
