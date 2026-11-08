@@ -1,13 +1,13 @@
 spring:
   application:
-    name: springboot-sns-sample
+    name: sns-app
   datasource:
     url: jdbc:postgresql://localhost:5432/snsdb
     username: snsuser
     password: snspassword
     driver-class-name: org.postgresql.Driver
   jpa:
-    show-sql: true
+    show-sql: false
     hibernate:
       ddl-auto: update
   data:
@@ -36,3 +36,11 @@ rustfs:
   bucket: media
   region: ap-northeast-2
   presigned-url-expiration-seconds: 3600
+
+logging:
+  structured:
+    format:
+      console: logstash
+    json:
+      add:
+        service_name: "${spring.application.name}"
