@@ -3,6 +3,10 @@ package com.apiece.springboot_sns_sample.api;
 import com.apiece.springboot_sns_sample.api.demo.ErrorResponse;
 import com.apiece.springboot_sns_sample.api.demo.TraceRessponse;
 import com.apiece.springboot_sns_sample.domain.recommand.RecommendService;
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.context.Scope;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +15,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestClientException;
 
 @Slf4j
 @RestController
@@ -18,19 +23,48 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class ObservabilityDemoController {
     private final RecommendService recommendService;
+    private final OpenTelemetry openTelemetry;
 
     @GetMapping("/trace")
     public ResponseEntity<TraceRessponse> trace(
         @RequestParam(defaultValue = "hello") String message,
-        @RequestParam(defaultValue = "1") Long userId
+        @RequestParam(defaultValue = "1") Long userId,
+        @RequestParam(defaultValue = "trace") String scenario
     ) {
-        log.info("[STEP 1] 요청 수신 message={} userId={}", message, userId);
+        if (!"trace".equals(scenario) && !"incident".equals(scenario)) {
+            return ResponseEntity.badRequest().build();
+        }
 
-        List<Long> rankedPostIds = recommendService.recommend(userId);
+        log.info("[STEP 1] 요청 수신 message={} userId={} scenario={}", message, userId, scenario);
 
-        log.info("[STEP 3] 요청 처리 완료");
+        // 스팬 생성
+        Span span = openTelemetry.getTracer("sns-app.demo")
+            .spanBuilder("recommend-fetch")
+            .setAttribute("user.id", userId)
+            .startSpan();
 
-        return ResponseEntity.ok(new TraceRessponse(message, rankedPostIds));
+        // 스팬 주입
+        try (Scope ignored = span.makeCurrent()) {
+            try {
+                List<Long> rankedPostIds = recommendService.recommend(userId);
+
+                log.info("[STEP 3] 요청 처리 완료 scenario={}", scenario);
+
+                return ResponseEntity.ok(new TraceRessponse(message, rankedPostIds));
+            } catch (RuntimeException e) {
+                span.setStatus(StatusCode.ERROR, "recommend request failed");
+                span.recordException(e);
+
+                if (!"incident".equals(scenario) || !(e instanceof RestClientException)) {
+                    throw e;
+                }
+                log.error("장애 분석 요청 실패 userId={}", userId, e);
+                return ResponseEntity.status(503).body(new TraceRessponse(message, null));
+            }
+        } finally {
+            span.end();
+        }
+
     }
 
     @GetMapping("/ok")
